@@ -3,8 +3,6 @@
 
 #include <cstdio>
 #include <locale>
-#include <cstring>
-#include <algorithm>
 
 #include <stack>
 
@@ -15,7 +13,10 @@
 class CLispInterpreter
 {
 public:
-    CLispInterpreter() = default;
+    CLispInterpreter(): cur_pos_(nullptr), var_pool_stack_(), func_pool_()
+    {
+        var_pool_stack_.push(CLispVariablePool());
+    }
 
     CLispInterpreter             (const CLispInterpreter&) = delete;
     CLispInterpreter& operator = (const CLispInterpreter&) = delete;
@@ -60,8 +61,7 @@ public:
         cur_pos_ = program_str_set;
 
         TLispNumber result = TLispNumber(0);
-
-        while (*cur_pos_) result = eval_expr();
+        result = eval_expr_list();
 
         cur_pos_ = nullptr;
 
@@ -90,19 +90,33 @@ public:
         ++cur_pos_; skip_spaces();
     }
 
-    void read_symbol(char symb_name[LISP_NAMEBUF_SIZE])
+    SLispSymbol read_symbol()
     {
+        SLispSymbol result;
+
         LISP_REQUIRE_(std::isalpha(*cur_pos_), "symbol expected")
 
         const char* temp_pos = cur_pos_;
         while (*temp_pos && std::isalpha(*temp_pos)) ++temp_pos;
 
         LISP_REQUIRE_(temp_pos - cur_pos_ < LISP_NAMEBUF_SIZE, "too long [>= LISP_NAMEBUF_SIZE] symbol name")
-        memcpy(symb_name, cur_pos_, temp_pos - cur_pos_);
-        symb_name[temp_pos - cur_pos_] = '\0';
+        memcpy(result.str, cur_pos_, temp_pos - cur_pos_);
+        result.str[temp_pos - cur_pos_] = '\0';
 
         cur_pos_ = temp_pos;
         skip_spaces();
+
+        return result;
+    }
+
+    TLispNumber eval_expr_list()
+    {
+        TLispNumber result = TLispNumber(0);
+
+        while (*cur_pos_ && *cur_pos_ != ')')
+            result = eval_expr();
+
+        return result;
     }
 
     TLispNumber eval_expr()
@@ -137,10 +151,9 @@ public:
 
         LISP_REQUIRE_(std::isalpha(*cur_pos_), "symbol expected")
 
-        char name[LISP_NAMEBUF_SIZE] = "";
-        read_symbol(name);
-
+        SLispSymbol name = read_symbol();
         const auto& var_node = var_pool_stack_.top().eval(name);
+
         result = var_node.value;
 
         return result;
@@ -152,9 +165,7 @@ public:
 
         LISP_REQUIRE_(std::isalpha(*cur_pos_), "symbol expected")
 
-        char name[LISP_NAMEBUF_SIZE] = "";
-        read_symbol(name);
-
+        SLispSymbol name = read_symbol();
         const auto& func_node = func_pool_.eval(name);
 
         var_pool_stack_.push(CLispVariablePool());
@@ -170,7 +181,7 @@ public:
         const char* temp_pos = cur_pos_;
         cur_pos_ = func_node.list_pos;
 
-//        eval_program();
+        result = eval_expr_list();
 
         var_pool_stack_.pop();
         cur_pos_ = temp_pos;
@@ -235,8 +246,7 @@ public:
 
         LISP_REQUIRE_(std::isalpha(*cur_pos_), "symbol expected")
 
-        char var_symb[LISP_NAMEBUF_SIZE] = "";
-        read_symbol(var_symb);
+        SLispSymbol var_symb = read_symbol();
 
         if (*cur_pos_ == ')') result = TLispNumber(0);
         else                  result = eval_expr();
@@ -253,20 +263,15 @@ public:
         LISP_REQUIRE_(var_pool_stack_.size() == 1, "global space expected")
         LISP_REQUIRE_(std::isalpha(*cur_pos_), "symbol expected")
 
-        char                                 func_symb[LISP_NAMEBUF_SIZE] = "";
-        std::vector<char[LISP_NAMEBUF_SIZE]> func_args_name_vec;
-        const char*                          func_list_pos = nullptr;
-
-        read_symbol(func_symb);
+        SLispSymbol              func_symb = read_symbol();
+        std::vector<SLispSymbol> func_args_name_vec;
+        const char*              func_list_pos = nullptr;
 
         LISP_REQUIRE_(*cur_pos_ == '(', "list '(' expected")
         ++cur_pos_; skip_spaces();
 
         while (*cur_pos_ && *cur_pos_ != ')')
-        {
-            func_args_name_vec.push_back({});
-            read_symbol(func_args_name_vec.back());
-        }
+            func_args_name_vec.push_back(read_symbol());
 
         LISP_REQUIRE_(*cur_pos_ == ')', "list ')' expected")
         ++cur_pos_; skip_spaces();
@@ -274,7 +279,7 @@ public:
         func_list_pos = cur_pos_;
         skip_list();
 
-        func_pool_.define(func_symb, std::move(func_args_name_vec), func_list_pos);
+        func_pool_.define(std::move(func_symb), std::move(func_args_name_vec), func_list_pos);
 
         return result;
     }

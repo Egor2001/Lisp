@@ -11,7 +11,7 @@ class CLispVariablePool
 public:
     struct SNode
     {
-        char        name[LISP_NAMEBUF_SIZE];
+        SLispSymbol name;
         TLispNumber value;
     };
 
@@ -40,12 +40,9 @@ public:
     }
 
 public:
-    const SNode& eval(char name[LISP_NAMEBUF_SIZE])
+    const SNode& eval(const SLispSymbol& name)
     {
-        auto search_pred = [name](const SNode& node)->bool
-        {
-            return !strncasecmp(name, node.name, LISP_NAMEBUF_SIZE-1);
-        };
+        auto search_pred = [name](const SNode& node) { return (name == node.name); };
 
         auto iter = std::find_if(node_vec_.begin(), node_vec_.end(), search_pred);
 
@@ -54,29 +51,16 @@ public:
         return (*iter);
     }
 
-    void define(const char name_set[LISP_NAMEBUF_SIZE],
+    void define(const SLispSymbol& name_set,
                 TLispNumber value_set)
     {
-        auto search_pred = [name_set](const SNode& node)->bool
-        {
-            return !strncasecmp(name_set, node.name, LISP_NAMEBUF_SIZE-1);
-        };
-
+        auto search_pred = [name_set](const SNode& node) { return (name_set == node.name); };
         auto iter = std::find_if(node_vec_.begin(), node_vec_.end(), search_pred);
 
         if (iter == node_vec_.end())
-        {
-            SNode new_node = {};
-
-            memcpy(new_node.name, name_set, sizeof(char)*LISP_NAMEBUF_SIZE);
-            new_node.value = value_set;
-
-            node_vec_.push_back(new_node);
-        }
+            node_vec_.push_back({ name_set, value_set });
         else
-        {
             iter->value = value_set;
-        }
     }
 
 private:

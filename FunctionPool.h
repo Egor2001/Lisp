@@ -1,6 +1,10 @@
 #ifndef LISP_FUNCTION_POOL_H_INCLUDED
 #define LISP_FUNCTION_POOL_H_INCLUDED
 
+#include <vector>
+
+#include "Types.h"
+
 class CLispFunctionPool
 {
 public:
@@ -8,35 +12,39 @@ public:
     {
     public:
         SNode() = default;
+
+        SNode(const SLispSymbol& name_set, const std::vector<SLispSymbol>& args_name_vec_set,
+              const char* list_pos_set):
+              name(name_set), args_name_vec(args_name_vec_set), list_pos(list_pos_set)
+        {}
+
         SNode             (const SNode&) = delete;
         SNode& operator = (const SNode&) = delete;
 
         SNode(SNode&& assign_node):
-            name(""), args_name_vec(), list_pos(nullptr)
+            name(), args_name_vec(), list_pos(nullptr)
         {
-            std::swap(*this, assign_node);
+            swap(*this, assign_node);
         }
 
         SNode& operator = (SNode&& assign_node)
         {
-            std::swap(*this, assign_node);
+            swap(*this, assign_node);
 
             return (*this);
         }
 
         friend void swap(SNode& lhs, SNode& rhs)
         {
-            using std::swap;
-
-            swap(lhs.name,          rhs.name);
-            swap(lhs.args_name_vec, rhs.args_name_vec);
-            swap(lhs.list_pos,      rhs.list_pos);
+            std::swap(lhs.name,          rhs.name);
+            std::swap(lhs.args_name_vec, rhs.args_name_vec);
+            std::swap(lhs.list_pos,      rhs.list_pos);
         }
 
     public:
-        char                                 name[LISP_NAMEBUF_SIZE];
-        std::vector<char[LISP_NAMEBUF_SIZE]> args_name_vec;
-        const char*                          list_pos;
+        SLispSymbol              name;
+        std::vector<SLispSymbol> args_name_vec;
+        const char*              list_pos;
     };
 
 public:
@@ -45,8 +53,7 @@ public:
     CLispFunctionPool             (const CLispFunctionPool&) = delete;
     CLispFunctionPool& operator = (const CLispFunctionPool&) = delete;
 
-    CLispFunctionPool(CLispFunctionPool&& assign_pool):
-        node_vec_()
+    CLispFunctionPool(CLispFunctionPool&& assign_pool): node_vec_()
     {
         std::swap(node_vec_, assign_pool.node_vec_);
     }
@@ -67,13 +74,9 @@ public:
     }
 
 public:
-    const SNode& eval(char name[LISP_NAMEBUF_SIZE])
+    const SNode& eval(const SLispSymbol& name)
     {
-        auto search_pred = [name](const SNode& node)->bool
-        {
-            return !strncasecmp(name, node.name, LISP_NAMEBUF_SIZE-1);
-        };
-
+        auto search_pred = [name](const SNode& node) { return (name == node.name); };
         auto iter = std::find_if(node_vec_.begin(), node_vec_.end(), search_pred);
 
         LISP_REQUIRE_(iter != node_vec_.end(), "no function named 'name'")
@@ -81,42 +84,21 @@ public:
         return (*iter);
     }
 
-    void define(const char name_set[LISP_NAMEBUF_SIZE],
-                std::vector<char[LISP_NAMEBUF_SIZE]>&& args_name_vec_set,
+    void define(const SLispSymbol& name_set,
+                std::vector<SLispSymbol>&& args_name_vec_set,
                 const char* list_pos_set)
     {
-        auto search_pred = [name_set](const SNode& node)->bool
-        {
-            return !strncasecmp(name_set, node.name, LISP_NAMEBUF_SIZE-1);
-        };
-
+        auto search_pred = [name_set](const SNode& node) { return (name_set == node.name); };
         auto iter = std::find_if(node_vec_.begin(), node_vec_.end(), search_pred);
 
         if (iter == node_vec_.end())
         {
-            SNode new_node = {};
-
-            memcpy(new_node.name, name_set, sizeof(char)*LISP_NAMEBUF_SIZE);
-            new_node.list_pos = list_pos_set;
-
-            size_t args_count = args_name_vec_set.size();
-            new_node.args_name_vec.resize(args_count, {});
-
-            for (size_t i = 0; i < args_count; ++i)
-                memcpy(new_node.args_name_vec[i], args_name_vec_set[i], sizeof(char)*LISP_NAMEBUF_SIZE);
-
-            node_vec_.emplace_back(std::move(new_node));
+            node_vec_.push_back({ name_set, args_name_vec_set, list_pos_set });
         }
         else
         {
-            iter->list_pos = list_pos_set;
-            iter->args_name_vec.clear();
-
-            size_t args_count = args_name_vec_set.size();
-            iter->args_name_vec.resize(args_count);
-
-            for (size_t i = 0; i < args_count; ++i)
-                memcpy(iter->args_name_vec[i], args_name_vec_set[i], sizeof(char)*LISP_NAMEBUF_SIZE);
+            iter->list_pos      = list_pos_set;
+            iter->args_name_vec = args_name_vec_set;
         }
     }
 
