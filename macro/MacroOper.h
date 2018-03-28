@@ -1,0 +1,5 @@
+LISP_HANDLE_OPER_("add", [](TLispNumber lhs, TLispNumber rhs){ return lhs + rhs; }, 0)
+LISP_HANDLE_OPER_("sub", [](TLispNumber lhs, TLispNumber rhs){ return lhs - rhs; }, 0)
+LISP_HANDLE_OPER_("mul", [](TLispNumber lhs, TLispNumber rhs){ return lhs * rhs; }, 1)
+LISP_HANDLE_OPER_("div", [](TLispNumber lhs, TLispNumber rhs){ return lhs / rhs; }, 1)
+LISP_HANDLE_OPER_("mod", [](TLispNumber lhs, TLispNumber rhs){ return lhs % rhs; }, 0)
